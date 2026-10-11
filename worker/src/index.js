@@ -1,4 +1,5 @@
 import { searchCrossref, CrossrefError } from './services/crossrefService.js'
+import { filterLiteratureByLanguage, normalizeLanguageFilter } from './services/languageFilter.js'
 import { corsHeaders, errorResponse, jsonResponse } from './utils/response.js'
 
 const SERVICE_NAME = 'phd-research-ai-worker'
@@ -26,7 +27,9 @@ function validateSearch(url, legacyBody = null) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     return { error: [400, 'INVALID_LIMIT', 'limit 必須是 1 到 100 之間的整數。'] }
   }
-  return { value: { query, fromYear: fromYear.value, toYear: toYear.value, limit } }
+  const language = normalizeLanguageFilter(url.searchParams.get('language') ?? legacyBody?.language)
+  if (language === null) return { error: [400, 'INVALID_LANGUAGE', 'language 必須是 all、zh、en、ja 或 other。'] }
+  return { value: { query, fromYear: fromYear.value, toYear: toYear.value, limit, language } }
 }
 
 function parseYear(raw, name, currentYear) {
@@ -70,21 +73,41 @@ export default {
       }
       try {
         const result = await searchCrossref(validation.value, env)
+        const language = validation.value.language
+        const matchedItems = filterLiteratureByLanguage(result.items, language)
+        const itemsToReturn = language === 'all' ? result.items : matchedItems.slice(0, validation.value.limit)
         const items = request.method === 'POST'
-          ? result.items.map(item => ({
+          ? itemsToReturn.map(item => ({
               ...item,
               authors: item.authors.map(author => [author.given, author.family].filter(Boolean).join(' ')).filter(Boolean).join(', '),
               source: item.journal || item.publisher || 'Crossref',
               providerSource: item.source,
               statusLabel: '來源已驗證',
             }))
-          : result.items
+          : itemsToReturn
+        const languageFilter = language === 'all' ? undefined : {
+          language,
+          source: 'crossref',
+          candidateCount: result.items.length,
+          matchedCount: matchedItems.length,
+          returnedCount: itemsToReturn.length,
+          missingLanguageCount: result.items.filter(item => !item.language).length,
+          candidateLimit: result.candidateLimit,
+          candidateWindowFull: result.items.length >= result.candidateLimit && result.total > result.items.length,
+        }
+        const missingLanguageCount = result.items.filter(item => !item.language).length
         return jsonResponse({
           ok: true,
           query: validation.value.query,
           total: result.total,
           source: 'crossref',
           items,
+          languageMetadata: {
+            source: 'crossref',
+            candidateCount: result.items.length,
+            missingLanguageCount,
+          },
+          ...(languageFilter ? { languageFilter } : {}),
         }, 200, headers)
       } catch (error) {
         if (error instanceof CrossrefError) return errorResponse(request, env, error.status, error.code, error.message)

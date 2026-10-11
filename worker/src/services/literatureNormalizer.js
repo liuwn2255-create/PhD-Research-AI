@@ -2,6 +2,33 @@ function cleanText(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+// ISO 639-1 language codes. We only normalize explicit provider metadata; text
+// content, author names, and publisher geography are never used as signals.
+const ISO_639_1_CODES = new Set(`aa ab ae af ak am an ar as av ay az ba be bg bh bi bm bn bo br bs ca ce ch co cr cs cu cv cy da de dv dz ee el en eo es et eu fa ff fi fj fo fr fy ga gd gl gn gu gv ha he hi ho hr ht hu hy hz ia id ie ig ii ik io is it iu ja jv ka kg ki kj kk kl km kn ko kr ks ku kv kw ky la lb lg li ln lo lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny oc oj om or os pa pi pl ps pt qu rm rn ro ru rw sa sc sd se sg si sk sl sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts tt tw ty ug uk ur uz ve vi vo wa wo xh yi yo za zh zu`.split(/\s+/))
+
+// ISO 639-2 aliases with widely used, unambiguous ISO 639-1 equivalents.
+const ISO_639_2_TO_1 = new Map(Object.entries({
+  eng: 'en', zho: 'zh', chi: 'zh', jpn: 'ja',
+  ara: 'ar', ces: 'cs', cze: 'cs', dan: 'da', deu: 'de', ger: 'de',
+  ell: 'el', gre: 'el', spa: 'es', fin: 'fi', fra: 'fr', fre: 'fr',
+  heb: 'he', hin: 'hi', hrv: 'hr', hun: 'hu', ind: 'id', ita: 'it',
+  kor: 'ko', nld: 'nl', dut: 'nl', nor: 'no', pol: 'pl', por: 'pt',
+  ron: 'ro', rum: 'ro', rus: 'ru', slk: 'sk', slo: 'sk', srp: 'sr',
+  swe: 'sv', tha: 'th', tur: 'tr', ukr: 'uk', urd: 'ur', vie: 'vi',
+  yid: 'yi',
+}))
+
+export function normalizeLanguage(value) {
+  if (typeof value !== 'string') return null
+  const raw = value.trim().toLowerCase().replaceAll('_', '-')
+  if (!raw || raw === 'und' || raw === 'zxx') return null
+
+  const primary = raw.split('-')[0]
+  if (primary === 'mul') return 'mul'
+  if (ISO_639_1_CODES.has(primary)) return primary
+  return ISO_639_2_TO_1.get(primary) || null
+}
+
 export function normalizeDoi(value) {
   let doi = cleanText(value)
   if (!doi) return ''
@@ -37,6 +64,7 @@ export function normalizeCrossrefWork(work) {
     url: doi ? `https://doi.org/${doi}` : sourceUrl,
     abstract: cleanText(work?.abstract),
     type: cleanText(work?.type),
+    language: normalizeLanguage(work?.language),
     source: 'crossref',
     sourceUrl,
     verified: true,

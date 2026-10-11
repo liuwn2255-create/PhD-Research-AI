@@ -95,7 +95,7 @@ console.log('PASS input validation: limit, years, and query length rejected when
 
 assert.deepEqual(normalizeCrossrefWork({}), {
   id: '', title: '', authors: [], year: null, journal: '', publisher: '', doi: '', url: '',
-  abstract: '', type: '', source: 'crossref', sourceUrl: '', verified: true,
+  abstract: '', type: '', language: null, source: 'crossref', sourceUrl: '', verified: true,
 })
 const sparseWork = normalizeCrossrefWork({ URL: 'https://api.crossref.org/works/no-doi', created: { 'date-parts': [[2026, 1, 1]] } })
 assert.deepEqual(sparseWork.authors, [])
@@ -204,6 +204,7 @@ for (const item of search.items.slice(0, 3).filter(item => item.doi)) {
   assert.equal(item.sourceUrl, upstream.URL || '')
   assert.equal(item.abstract, typeof upstream.abstract === 'string' ? upstream.abstract.trim() : '')
   assert.equal(item.type, upstream.type || '')
+  assert.equal(item.language, normalizeCrossrefWork(upstream).language)
   assert.equal(item.url, `https://doi.org/${upstream.DOI}`)
   console.log(`PASS source verification: ${item.doi} matches Crossref work record`)
 }

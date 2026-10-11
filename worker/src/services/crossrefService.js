@@ -9,10 +9,13 @@ export class CrossrefError extends Error {
   }
 }
 
-export async function searchCrossref({ query, fromYear, toYear, limit }, env) {
+export async function searchCrossref({ query, fromYear, toYear, limit, language = 'all' }, env) {
+  // Crossref's Works endpoint does not offer a dependable language filter.
+  // Fetch a bounded candidate window, then filter only on deposited metadata.
+  const candidateLimit = language === 'all' ? limit : Math.min(500, limit * 5)
   const url = new URL('https://api.crossref.org/works')
   url.searchParams.set('query', query)
-  url.searchParams.set('rows', String(limit))
+  url.searchParams.set('rows', String(candidateLimit))
   if (fromYear || toYear) {
     const from = fromYear || toYear
     const to = toYear || fromYear
@@ -52,5 +55,6 @@ export async function searchCrossref({ query, fromYear, toYear, limit }, env) {
   return {
     total: Number.isFinite(message['total-results']) ? message['total-results'] : message.items.length,
     items: message.items.map(normalizeCrossrefWork),
+    candidateLimit,
   }
 }
