@@ -1,4 +1,5 @@
 import './styles.css'
+import professorAvatar from './assets/professor-avatar.webp'
 import { searchLiterature } from './services/literatureService.js'
 
 const navItems = [
@@ -21,9 +22,9 @@ function shell(content) {
       </a>
       <div class="workspace-label">研究工作區</div>
       <nav aria-label="主要導覽">${navItems.map(item => `<a class="nav-link ${state.page === item.id ? 'active' : ''}" href="#${item.id}"><span class="nav-icon">${item.icon}</span><span>${item.label}</span>${item.id === 'research' ? '<span class="nav-current"></span>' : ''}</a>`).join('')}</nav>
-      <div class="sidebar-bottom"><div class="profile-avatar">研</div><div><strong>我的研究工作區</strong><small>個人研究者</small></div><span class="more">···</span></div>
+      <div class="sidebar-bottom"><img class="profile-avatar" src="${professorAvatar}" alt="博士服頭像"><div><strong>我的研究工作區</strong><small>個人研究者</small></div><span class="more">···</span></div>
     </aside>
-    <main class="main-area"><header class="topbar"><div class="breadcrumbs">研究工作區 <span>/</span> ${navItems.find(i => i.id === state.page)?.label}</div><div class="top-actions"><button class="icon-button" aria-label="說明">？</button><div class="top-avatar">林</div></div></header><div class="page-content">${content}</div></main>
+    <main class="main-area"><header class="topbar"><div class="breadcrumbs">研究工作區 <span>/</span> ${navItems.find(i => i.id === state.page)?.label}</div><div class="top-actions"><button class="icon-button" aria-label="說明">？</button><img class="top-avatar" src="${professorAvatar}" alt="博士服頭像"></div></header><div class="page-content">${content}</div></main>
   </div><nav class="mobile-nav" aria-label="手機主要導覽">${navItems.map(item => `<a class="${state.page === item.id ? 'active' : ''}" href="#${item.id}"><span>${item.icon}</span><small>${item.label}</small></a>`).join('')}</nav>`
 }
 
