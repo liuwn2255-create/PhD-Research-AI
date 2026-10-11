@@ -26,7 +26,7 @@ export function normalizeLanguagesFilter(value) {
 export function filterLiteratureByLanguages(items, languages) {
   if (!languages.length) return [...items]
   return items.filter(item => {
-    if (!item.language) return false
+    if (!item.language || item.languageStatus === 'needs-review') return false
     return languages.some(language => language === 'other'
       ? !PRIMARY_LANGUAGES.has(item.language)
       : item.language === language)

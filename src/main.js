@@ -77,7 +77,10 @@ function researchPage() {
 }
 
 function renderLiterature(item) {
-  return `<article class="literature-card"><div class="literature-top"><span class="literature-status">${escapeHtml(item.statusLabel || '待確認')}</span><span class="literature-year">${escapeHtml(item.year || '年份待確認')}</span></div><h3>${escapeHtml(item.title || '未提供標題')}</h3><p class="literature-authors">${escapeHtml(item.authors || '作者待確認')}</p><div class="literature-meta"><span>${escapeHtml(item.source || '出版來源待確認')}</span><span>DOI：${escapeHtml(item.doi || '未提供')}</span></div><div class="literature-abstract"><strong>摘要</strong><p>${escapeHtml(item.abstract || '來源未提供摘要。')}</p></div>${item.url ? `<a class="text-link" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">開啟原始來源 <span>↗</span></a>` : '<span class="quiet-label">未提供原始來源連結</span>'}</article>`
+  const languageReviewBadge = item.languageStatus === 'needs-review'
+    ? `<span class="language-review-badge" role="status" title="${escapeHtml(item.languageReviewReason || '語言資訊待確認。')}">語言待確認</span>`
+    : ''
+  return `<article class="literature-card"><div class="literature-top"><span class="literature-status">${escapeHtml(item.statusLabel || '待確認')}</span>${languageReviewBadge}<span class="literature-year">${escapeHtml(item.year || '年份待確認')}</span></div><h3>${escapeHtml(item.title || '未提供標題')}</h3><p class="literature-authors">${escapeHtml(item.authors || '作者待確認')}</p><div class="literature-meta"><span>${escapeHtml(item.source || '出版來源待確認')}</span><span>DOI：${escapeHtml(item.doi || '未提供')}</span></div><div class="literature-abstract"><strong>摘要</strong><p>${escapeHtml(item.abstract || '來源未提供摘要。')}</p></div>${item.url ? `<a class="text-link" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">開啟原始來源 <span>↗</span></a>` : '<span class="quiet-label">未提供原始來源連結</span>'}</article>`
 }
 
 const matrixColumns = ['作者', '年份', '研究主題', '研究目的', '研究方法', '研究對象', '研究結果', '研究限制', '研究來源']
@@ -150,9 +153,9 @@ function renderResults() {
     ? languageFilter.languages.map(language => languageLabels[language] || language).join('、')
     : languageLabels[languageFilter?.language] || '中文腳本'
   const languageSummary = languageFilter
-    ? `<div class="language-filter-summary" role="status"><strong>語言篩選：${selectedLanguageLabel}${languageFilter.languageScript !== 'all' ? `／${scriptLabels[languageFilter.languageScript] || '中文腳本'}` : ''}</strong><p>本次檢查 Crossref 候選 ${languageFilter.candidateCount} 筆，符合 ${languageFilter.matchedCount} 筆；${languageFilter.missingLanguageCount} 筆沒有可辨識的語言欄位，因此未納入語言篩選。</p><p>Crossref 語言／腳本資料可能不完整。${languageFilter.languageScript !== 'all' ? `另有 ${languageMetadata?.missingLanguageScriptCount || 0} 筆中文候選未明確標示繁簡腳本。` : ''}${languageFilter.candidateWindowFull ? `本次候選集已達 ${languageFilter.candidateLimit} 筆上限，其他尚未取回的文獻未納入判斷。` : ''}</p></div>`
-    : languageMetadata?.missingLanguageCount > 0
-      ? `<div class="language-filter-summary" role="status"><strong>Crossref 語言資料提醒</strong><p>本次 ${languageMetadata.candidateCount} 筆候選文獻中，有 ${languageMetadata.missingLanguageCount} 筆沒有可辨識的語言欄位。選擇特定語言時，這些文獻不會被歸入該語言或「其他」。</p></div>`
+    ? `<div class="language-filter-summary" role="status"><strong>語言篩選：${selectedLanguageLabel}${languageFilter.languageScript !== 'all' ? `／${scriptLabels[languageFilter.languageScript] || '中文腳本'}` : ''}</strong><p>本次檢查 Crossref 候選 ${languageFilter.candidateCount} 筆，符合 ${languageFilter.matchedCount} 筆；${languageFilter.missingLanguageCount} 筆沒有語言資料，另有 ${languageFilter.reviewLanguageCount || 0} 筆來源語言與標題特徵衝突、待確認，因此未納入語言篩選。</p><p>Crossref 語言／腳本資料可能不完整。${languageFilter.languageScript !== 'all' ? `另有 ${languageMetadata?.missingLanguageScriptCount || 0} 筆中文候選未明確標示繁簡腳本。` : ''}${languageFilter.candidateWindowFull ? `本次候選集已達 ${languageFilter.candidateLimit} 筆上限，其他尚未取回的文獻未納入判斷。` : ''}</p></div>`
+    : languageMetadata?.missingLanguageCount > 0 || languageMetadata?.reviewLanguageCount > 0
+      ? `<div class="language-filter-summary" role="status"><strong>Crossref 語言資料提醒</strong><p>本次 ${languageMetadata.candidateCount} 筆候選文獻中，有 ${languageMetadata.missingLanguageCount} 筆沒有可辨識的語言欄位，另有 ${languageMetadata.reviewLanguageCount || 0} 筆語言欄位與標題特徵衝突，已標為待確認。選擇特定語言時，這些文獻不會被歸入該語言或「其他」。</p></div>`
       : ''
   if (state.loading) return '<div class="empty-state"><div class="loading-mark">⌕</div><h3>正在準備搜尋</h3><p>請稍候片刻…</p></div>'
   if (state.results?.status === 'error') return `<div class="empty-state"><div class="empty-icon">!</div><h3>無法完成搜尋</h3><p>${escapeHtml(state.results.message)}</p></div>`

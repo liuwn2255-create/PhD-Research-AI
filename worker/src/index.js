@@ -106,11 +106,13 @@ export default {
           candidateCount: result.items.length,
           matchedCount: matchedItems.length,
           returnedCount: itemsToReturn.length,
-          missingLanguageCount: result.items.filter(item => !item.language).length,
+          missingLanguageCount: result.items.filter(item => !item.language && item.languageStatus !== 'needs-review').length,
+          reviewLanguageCount: result.items.filter(item => item.languageStatus === 'needs-review').length,
           candidateLimit: result.candidateLimit,
           candidateWindowFull: result.items.length >= result.candidateLimit && result.total > result.items.length,
         }
-        const missingLanguageCount = result.items.filter(item => !item.language).length
+        const missingLanguageCount = result.items.filter(item => !item.language && item.languageStatus !== 'needs-review').length
+        const reviewLanguageCount = result.items.filter(item => item.languageStatus === 'needs-review').length
         return jsonResponse({
           ok: true,
           query: validation.value.query,
@@ -121,6 +123,7 @@ export default {
             source: 'crossref',
             candidateCount: result.items.length,
             missingLanguageCount,
+            reviewLanguageCount,
             missingLanguageScriptCount: result.items.filter(item => item.language === 'zh' && !item.languageScript).length,
           },
           ...(languageFilter ? { languageFilter } : {}),

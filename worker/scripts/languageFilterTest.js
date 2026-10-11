@@ -14,11 +14,22 @@ const rawWorks = [
   { DOI: '10.example/mul', language: 'mul', title: ['Multiple-language record'] },
   { DOI: '10.example/missing', title: ['No language field'] },
   { DOI: '10.example/unrecognized', language: 'x-unknown', title: ['Unknown code'] },
+  { DOI: '10.5803/jsfm.39.87', language: 'en', title: ['解いて学ぶ 食品衛生・食品安全 テキスト&問題集 第2版'] },
+  { DOI: '10.example/bilingual', language: 'en', title: ['食の安全 Food Safety ガイド'] },
+  { DOI: '10.example/ja-reported', language: 'ja', title: ['日本語の研究'] },
+  { DOI: '10.example/ja-unknown', title: ['食品衛生の研究'] },
 ]
 const works = rawWorks.map(normalizeCrossrefWork)
 
-assert.deepEqual(works.map(item => item.language), ['zh', 'zh', 'zh', 'zh', 'en', 'ja', 'fr', 'mul', null, null])
-assert.deepEqual(works.map(item => item.languageScript), [null, 'Hant', 'Hans', null, null, null, null, null, null, null])
+assert.deepEqual(works.map(item => item.language), ['zh', 'zh', 'zh', 'zh', 'en', 'ja', 'fr', 'mul', null, null, null, 'en', 'ja', null])
+assert.deepEqual(works.map(item => item.languageScript), [null, 'Hant', 'Hans', null, null, null, null, null, null, null, null, null, null, null])
+const mislabelledJapanese = works.find(item => item.doi === '10.5803/jsfm.39.87')
+assert.equal(mislabelledJapanese.sourceLanguage, 'en')
+assert.equal(mislabelledJapanese.language, null)
+assert.equal(mislabelledJapanese.languageStatus, 'needs-review')
+assert.ok(mislabelledJapanese.languageReviewReason)
+assert.equal(works.find(item => item.id === '10.example/bilingual').languageStatus, 'source-reported')
+assert.equal(works.find(item => item.id === '10.example/ja-unknown').languageStatus, 'needs-review')
 assert.equal(normalizeCrossrefWork({ language: 'und' }).language, null)
 assert.equal(normalizeCrossrefWork({ language: 'zxx' }).language, null)
 
@@ -37,12 +48,14 @@ assert.equal(normalizeLanguageScriptFilter(undefined), 'all')
 assert.equal(normalizeLanguageScriptFilter('traditional'), null)
 assert.deepEqual(filterLiteratureByLanguage(works, 'all'), works)
 assert.deepEqual(filterLiteratureByLanguage(works, 'zh').map(item => item.languageScript), [null, 'Hant', 'Hans', null])
-assert.deepEqual(filterLiteratureByLanguage(works, 'en').map(item => item.language), ['en'])
-assert.deepEqual(filterLiteratureByLanguage(works, 'ja').map(item => item.language), ['ja'])
+assert.deepEqual(filterLiteratureByLanguage(works, 'en').map(item => item.language), ['en', 'en'])
+assert.ok(!filterLiteratureByLanguage(works, 'en').some(item => item.doi === '10.5803/jsfm.39.87'))
+assert.ok(!filterLiteratureByLanguages(works, ['zh', 'en']).some(item => item.doi === '10.5803/jsfm.39.87'))
+assert.deepEqual(filterLiteratureByLanguage(works, 'ja').map(item => item.language), ['ja', 'ja'])
 assert.deepEqual(filterLiteratureByLanguage(works, 'other').map(item => item.language), ['fr', 'mul'])
 assert.ok(!filterLiteratureByLanguage(works, 'other').some(item => item.language === null))
-assert.deepEqual(filterLiteratureByLanguages(works, ['zh', 'en']).map(item => item.language), ['zh', 'zh', 'zh', 'zh', 'en'])
-assert.deepEqual(filterLiteratureByLanguages(works, ['zh', 'en', 'ja']).map(item => item.language), ['zh', 'zh', 'zh', 'zh', 'en', 'ja'])
+assert.deepEqual(filterLiteratureByLanguages(works, ['zh', 'en']).map(item => item.language), ['zh', 'zh', 'zh', 'zh', 'en', 'en'])
+assert.deepEqual(filterLiteratureByLanguages(works, ['zh', 'en', 'ja']).map(item => item.language), ['zh', 'zh', 'zh', 'zh', 'en', 'ja', 'en', 'ja'])
 assert.deepEqual(filterLiteratureByLanguages(works, []).map(item => item.id), works.map(item => item.id))
 assert.deepEqual(filterLiteratureByScript(works, 'hant').map(item => item.languageScript), ['Hant'])
 assert.deepEqual(filterLiteratureByScript(works, 'hans').map(item => item.languageScript), ['Hans'])
@@ -69,7 +82,8 @@ try {
   const all = await allResponse.json()
   assert.equal(all.items.length, rawWorks.length)
   assert.equal(all.languageFilter, undefined)
-  assert.equal(all.items.filter(item => item.language === null).length, 2)
+  assert.equal(all.items.filter(item => item.language === null).length, 4)
+  assert.equal(all.items.find(item => item.doi === '10.5803/jsfm.39.87').languageStatus, 'needs-review')
   assert.equal(observedUrl.searchParams.get('rows'), '2')
 
   for (const language of ['zh', 'en', 'ja', 'other']) {
@@ -82,10 +96,12 @@ try {
     assert.equal(body.languageFilter.language, language)
     assert.deepEqual(body.languageFilter.languages, [language])
     assert.equal(body.languageFilter.candidateCount, rawWorks.length)
-    assert.equal(body.languageFilter.matchedCount, language === 'zh' ? 4 : language === 'other' ? 2 : 1)
+    assert.equal(body.languageFilter.matchedCount, language === 'zh' ? 4 : language === 'other' ? 2 : 2)
     assert.equal(body.languageFilter.returnedCount, body.items.length)
     assert.equal(body.languageFilter.missingLanguageCount, 2)
     assert.equal(body.languageMetadata.missingLanguageCount, 2)
+    assert.equal(body.languageFilter.reviewLanguageCount, 2)
+    assert.equal(body.languageMetadata.reviewLanguageCount, 2)
     assert.equal(observedUrl.searchParams.get('rows'), '10')
   }
 
@@ -96,7 +112,8 @@ try {
     assert.deepEqual(body.languageFilter.languages, languages)
     assert.equal(body.languageFilter.language, 'all')
     assert.ok(body.items.every(item => languages.includes(item.language)))
-    assert.equal(body.languageFilter.matchedCount, languages.length === 2 ? 5 : 6)
+    assert.equal(body.languageFilter.matchedCount, languages.length === 2 ? 6 : 8)
+    assert.ok(!body.items.some(item => item.doi === '10.5803/jsfm.39.87'))
     assert.equal(body.languageFilter.returnedCount, 2)
     assert.equal(observedUrl.searchParams.get('rows'), '10')
   }
@@ -128,7 +145,7 @@ try {
   const invalidScriptResponse = await post({ ...base, languageScript: 'traditional' })
   assert.equal(invalidScriptResponse.status, 400)
   assert.equal((await invalidScriptResponse.json()).error.code, 'INVALID_LANGUAGE_SCRIPT')
-  console.log('PASS Worker POST: language filtering, unknown metadata summary, all and omitted-language compatibility')
+  console.log('PASS Worker POST: language filtering, source/title conflict review, bilingual title, all and omitted-language compatibility')
 } finally {
   globalThis.fetch = originalFetch
 }

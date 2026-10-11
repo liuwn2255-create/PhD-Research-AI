@@ -40,6 +40,15 @@ export function normalizeLanguageScript(value) {
   return null
 }
 
+function titleHasJapaneseOnlySignal(title) {
+  if (!title) return false
+  const hasJapaneseKana = /[\u3040-\u30ff\u31f0-\u31ff\uff66-\uff9f]/u.test(title)
+  const hasLatinLetters = /\p{Script=Latin}/u.test(title)
+  // Kana is distinctive to Japanese. If Latin letters are also present, keep
+  // the source language because the title may be bilingual or mixed-language.
+  return hasJapaneseKana && !hasLatinLetters
+}
+
 export function normalizeDoi(value) {
   let doi = cleanText(value)
   if (!doi) return ''
@@ -60,13 +69,18 @@ function publicationYear(work) {
 export function normalizeCrossrefWork(work) {
   const doi = normalizeDoi(work?.DOI)
   const sourceUrl = cleanText(work?.URL)
+  const title = cleanText(Array.isArray(work?.title) ? work.title[0] : '')
+  const sourceLanguage = cleanText(work?.language)
+  const reportedLanguage = normalizeLanguage(sourceLanguage)
+  const titleLanguageConflict = titleHasJapaneseOnlySignal(title) && reportedLanguage !== 'ja'
+  const language = titleLanguageConflict ? null : reportedLanguage
   const authors = Array.isArray(work?.author)
     ? work.author.map(author => ({ given: cleanText(author?.given), family: cleanText(author?.family) }))
     : []
 
   return {
     id: doi || sourceUrl,
-    title: cleanText(Array.isArray(work?.title) ? work.title[0] : ''),
+    title,
     authors,
     year: publicationYear(work),
     journal: cleanText(Array.isArray(work?.['container-title']) ? work['container-title'][0] : ''),
@@ -75,8 +89,11 @@ export function normalizeCrossrefWork(work) {
     url: doi ? `https://doi.org/${doi}` : sourceUrl,
     abstract: cleanText(work?.abstract),
     type: cleanText(work?.type),
-    language: normalizeLanguage(work?.language),
-    languageScript: normalizeLanguage(work?.language) === 'zh' ? normalizeLanguageScript(work?.language) : null,
+    language,
+    sourceLanguage,
+    languageStatus: titleLanguageConflict ? 'needs-review' : reportedLanguage ? 'source-reported' : 'unknown',
+    languageReviewReason: titleLanguageConflict ? 'Crossref 語言欄位與日文假名標題特徵不一致。' : '',
+    languageScript: language === 'zh' ? normalizeLanguageScript(sourceLanguage) : null,
     source: 'crossref',
     sourceUrl,
     verified: true,
