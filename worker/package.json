@@ -1,0 +1,15 @@
+{
+  "name": "phd-research-ai-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "test:smoke": "node scripts/smokeTest.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.0"
+  }
+}

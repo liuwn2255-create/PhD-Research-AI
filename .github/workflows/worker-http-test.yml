@@ -1,0 +1,90 @@
+name: Worker HTTP tests
+
+on:
+  push:
+    paths:
+      - 'worker/**'
+      - '.github/workflows/worker-http-test.yml'
+  pull_request:
+    paths:
+      - 'worker/**'
+      - '.github/workflows/worker-http-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker-http-tests:
+    name: Wrangler local HTTP and Crossref
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build Worker bundle
+        run: npm run build
+
+      - name: Run handler smoke tests
+        run: npm run test:smoke
+
+      - name: Run Wrangler HTTP endpoint tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          LOG_PATH="$RUNNER_TEMP/wrangler-dev.log"
+          SERVER_PID=""
+
+          cleanup() {
+            local exit_code=$?
+            trap - EXIT
+            if [[ -n "$SERVER_PID" ]]; then
+              kill -- "-$SERVER_PID" 2>/dev/null || kill "$SERVER_PID" 2>/dev/null || true
+              wait "$SERVER_PID" 2>/dev/null || true
+            fi
+            if [[ "$exit_code" -ne 0 ]]; then
+              echo 'Wrangler dev log (full):'
+              if [[ -f "$LOG_PATH" ]]; then cat "$LOG_PATH"; fi
+            fi
+            exit "$exit_code"
+          }
+          trap cleanup EXIT
+
+          setsid node ./node_modules/wrangler/bin/wrangler.js dev \
+            --ip 127.0.0.1 \
+            --port 8787 \
+            --log-level info >"$LOG_PATH" 2>&1 &
+          SERVER_PID=$!
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --silent --show-error --fail http://127.0.0.1:8787/api/health >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo 'Wrangler exited before the local HTTP server became ready.'
+              exit 1
+            fi
+            sleep 1
+          done
+          if [[ "$ready" -ne 1 ]]; then
+            echo 'Timed out waiting for Wrangler at http://127.0.0.1:8787.'
+            exit 1
+          fi
+
+          WORKER_BASE_URL=http://127.0.0.1:8787 node scripts/httpTest.js

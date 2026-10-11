@@ -1,0 +1,2 @@
+# Optional Crossref polite-pool contact address (not an API key).
+CROSSREF_MAILTO=researcher@example.org
