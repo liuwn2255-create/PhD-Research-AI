@@ -1,5 +1,5 @@
 import { searchCrossref, CrossrefError } from './services/crossrefService.js'
-import { filterLiteratureByLanguage, normalizeLanguageFilter } from './services/languageFilter.js'
+import { filterLiteratureByLanguages, filterLiteratureByScript, normalizeLanguageFilter, normalizeLanguagesFilter, normalizeLanguageScriptFilter } from './services/languageFilter.js'
 import { corsHeaders, errorResponse, jsonResponse } from './utils/response.js'
 
 const SERVICE_NAME = 'phd-research-ai-worker'
@@ -27,9 +27,19 @@ function validateSearch(url, legacyBody = null) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     return { error: [400, 'INVALID_LIMIT', 'limit 必須是 1 到 100 之間的整數。'] }
   }
-  const language = normalizeLanguageFilter(url.searchParams.get('language') ?? legacyBody?.language)
-  if (language === null) return { error: [400, 'INVALID_LANGUAGE', 'language 必須是 all、zh、en、ja 或 other。'] }
-  return { value: { query, fromYear: fromYear.value, toYear: toYear.value, limit, language } }
+  let rawLanguages
+  if (url.searchParams.has('languages')) rawLanguages = url.searchParams.getAll('languages')
+  else if (legacyBody && Object.hasOwn(legacyBody, 'languages')) rawLanguages = legacyBody.languages
+  let languages
+  if (rawLanguages !== undefined) languages = normalizeLanguagesFilter(rawLanguages)
+  else {
+    const legacyLanguage = normalizeLanguageFilter(url.searchParams.get('language') ?? legacyBody?.language)
+    languages = legacyLanguage === null ? null : legacyLanguage === 'all' ? [] : [legacyLanguage]
+  }
+  if (languages === null) return { error: [400, 'INVALID_LANGUAGES', 'languages 必須是 zh、en、ja、other 組成的陣列。'] }
+  const languageScript = normalizeLanguageScriptFilter(url.searchParams.get('languageScript') ?? legacyBody?.languageScript)
+  if (languageScript === null) return { error: [400, 'INVALID_LANGUAGE_SCRIPT', 'languageScript 必須是 all、hant 或 hans。'] }
+  return { value: { query, fromYear: fromYear.value, toYear: toYear.value, limit, languages, languageScript } }
 }
 
 function parseYear(raw, name, currentYear) {
@@ -73,9 +83,12 @@ export default {
       }
       try {
         const result = await searchCrossref(validation.value, env)
-        const language = validation.value.language
-        const matchedItems = filterLiteratureByLanguage(result.items, language)
-        const itemsToReturn = language === 'all' ? result.items : matchedItems.slice(0, validation.value.limit)
+        const languages = validation.value.languages
+        const languageScript = validation.value.languageScript
+        const languageMatches = filterLiteratureByLanguages(result.items, languages)
+        const matchedItems = filterLiteratureByScript(languageMatches, languageScript)
+        const filtersActive = languages.length > 0 || languageScript !== 'all'
+        const itemsToReturn = filtersActive ? matchedItems.slice(0, validation.value.limit) : result.items
         const items = request.method === 'POST'
           ? itemsToReturn.map(item => ({
               ...item,
@@ -85,8 +98,10 @@ export default {
               statusLabel: '來源已驗證',
             }))
           : itemsToReturn
-        const languageFilter = language === 'all' ? undefined : {
-          language,
+        const languageFilter = !filtersActive ? undefined : {
+          language: languages.length === 1 ? languages[0] : 'all',
+          languages,
+          languageScript,
           source: 'crossref',
           candidateCount: result.items.length,
           matchedCount: matchedItems.length,
@@ -106,6 +121,7 @@ export default {
             source: 'crossref',
             candidateCount: result.items.length,
             missingLanguageCount,
+            missingLanguageScriptCount: result.items.filter(item => item.language === 'zh' && !item.languageScript).length,
           },
           ...(languageFilter ? { languageFilter } : {}),
         }, 200, headers)

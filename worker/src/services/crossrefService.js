@@ -9,10 +9,10 @@ export class CrossrefError extends Error {
   }
 }
 
-export async function searchCrossref({ query, fromYear, toYear, limit, language = 'all' }, env) {
+export async function searchCrossref({ query, fromYear, toYear, limit, languages = [], languageScript = 'all' }, env) {
   // Crossref's Works endpoint does not offer a dependable language filter.
   // Fetch a bounded candidate window, then filter only on deposited metadata.
-  const candidateLimit = language === 'all' ? limit : Math.min(500, limit * 5)
+  const candidateLimit = languages.length === 0 && languageScript === 'all' ? limit : Math.min(500, limit * 5)
   const url = new URL('https://api.crossref.org/works')
   url.searchParams.set('query', query)
   url.searchParams.set('rows', String(candidateLimit))

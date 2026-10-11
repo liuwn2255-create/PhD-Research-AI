@@ -29,6 +29,17 @@ export function normalizeLanguage(value) {
   return ISO_639_2_TO_1.get(primary) || null
 }
 
+// Script is retained only when Crossref explicitly provides a Chinese script
+// subtag. A region subtag (for example TW or CN) is not treated as script or origin.
+export function normalizeLanguageScript(value) {
+  if (typeof value !== 'string') return null
+  const subtags = value.trim().replaceAll('_', '-').split('-').slice(1)
+  const script = subtags.find(part => /^[a-z]{4}$/i.test(part))?.toLowerCase()
+  if (script === 'hant') return 'Hant'
+  if (script === 'hans') return 'Hans'
+  return null
+}
+
 export function normalizeDoi(value) {
   let doi = cleanText(value)
   if (!doi) return ''
@@ -65,6 +76,7 @@ export function normalizeCrossrefWork(work) {
     abstract: cleanText(work?.abstract),
     type: cleanText(work?.type),
     language: normalizeLanguage(work?.language),
+    languageScript: normalizeLanguage(work?.language) === 'zh' ? normalizeLanguageScript(work?.language) : null,
     source: 'crossref',
     sourceUrl,
     verified: true,

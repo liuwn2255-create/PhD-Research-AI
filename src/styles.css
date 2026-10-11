@@ -11,3 +11,8 @@
 .language-filter-summary strong{font-size:13px;font-weight:600;color:#315e49}
 .language-filter-summary p{margin:6px 0 0;font-size:12px;line-height:1.65}
 @media(max-width:760px){.language-filter-summary{padding:12px}.language-filter-summary p{font-size:11px}}
+.advanced-field-label{display:block;margin-bottom:6px;color:#4a5850;font-size:12px;font-weight:600}
+.language-checkbox-list{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.advanced-field .language-checkbox-option{display:flex!important;align-items:center;gap:6px;width:max-content;max-width:100%;margin:0;padding:6px 8px;border:1px solid #e3e8e2;border-radius:5px;background:#fff;color:#57645c;font-size:12px;font-weight:500;line-height:1.35;cursor:pointer}
+.language-checkbox-option input{flex:none;margin:0;accent-color:#4d785b}
+.language-selection-summary{margin:7px 0 0;color:#718078;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
