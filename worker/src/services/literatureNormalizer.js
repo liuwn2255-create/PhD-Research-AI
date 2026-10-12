@@ -40,10 +40,28 @@ export function normalizeLanguageScript(value) {
   return null
 }
 
+function decodeTitleEntities(title) {
+  return title.replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (entity, token) => {
+    if (token[0] === '#') {
+      const codePoint = token[1]?.toLowerCase() === 'x'
+        ? Number.parseInt(token.slice(2), 16)
+        : Number.parseInt(token.slice(1), 10)
+      return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : entity
+    }
+    return ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" })[token.toLowerCase()] || entity
+  })
+}
+
 function titleHasJapaneseOnlySignal(title) {
   if (!title) return false
-  const hasJapaneseKana = /[\u3040-\u30ff\u31f0-\u31ff\uff66-\uff9f]/u.test(title)
-  const hasLatinLetters = /\p{Script=Latin}/u.test(title)
+  // Crossref may HTML/XML-escape punctuation (for example `&amp;`). Decode
+  // entities before checking Latin letters so entity names are not mistaken
+  // for an English part of a bilingual title.
+  const signalTitle = decodeTitleEntities(title)
+  const hasJapaneseKana = /[\u3040-\u30ff\u31f0-\u31ff\uff66-\uff9f]/u.test(signalTitle)
+  const hasLatinLetters = /\p{Script=Latin}/u.test(signalTitle)
   // Kana is distinctive to Japanese. If Latin letters are also present, keep
   // the source language because the title may be bilingual or mixed-language.
   return hasJapaneseKana && !hasLatinLetters

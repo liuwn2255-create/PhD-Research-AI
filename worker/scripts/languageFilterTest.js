@@ -14,7 +14,7 @@ const rawWorks = [
   { DOI: '10.example/mul', language: 'mul', title: ['Multiple-language record'] },
   { DOI: '10.example/missing', title: ['No language field'] },
   { DOI: '10.example/unrecognized', language: 'x-unknown', title: ['Unknown code'] },
-  { DOI: '10.5803/jsfm.39.87', language: 'en', title: ['解いて学ぶ 食品衛生・食品安全 テキスト&問題集 第2版'] },
+  { DOI: '10.5803/jsfm.39.87', language: 'en', title: ['解いて学ぶ　食品衛生・食品安全　テキスト&amp;問題集　第2版'] },
   { DOI: '10.example/bilingual', language: 'en', title: ['食の安全 Food Safety ガイド'] },
   { DOI: '10.example/ja-reported', language: 'ja', title: ['日本語の研究'] },
   { DOI: '10.example/ja-unknown', title: ['食品衛生の研究'] },
@@ -117,6 +117,38 @@ try {
     assert.equal(body.languageFilter.returnedCount, 2)
     assert.equal(observedUrl.searchParams.get('rows'), '10')
   }
+
+  // Exercise the serialized Worker response with a limit large enough that
+  // the target DOI would be present if any stage accidentally bypassed filtering.
+  const regressionBase = { ...base, limit: 50 }
+  const englishResponse = await post({ ...regressionBase, languages: ['en'] })
+  assert.equal(englishResponse.status, 200)
+  const english = await englishResponse.json()
+  assert.ok(english.items.some(item => item.doi === '10.example/en'), 'ordinary English work remains in final response')
+  assert.ok(!english.items.some(item => item.doi === '10.example/ja-reported'), 'Japanese work is absent from English final response')
+  assert.ok(!english.items.some(item => item.doi === '10.5803/jsfm.39.87'), 'mislabelled Japanese DOI is absent from English final response')
+  assert.equal(english.languageFilter.matchedCount, english.languageFilter.returnedCount)
+  assert.equal(english.languageFilter.returnedCount, english.items.length)
+
+  const chineseEnglishResponse = await post({ ...regressionBase, languages: ['zh', 'en'] })
+  const chineseEnglish = await chineseEnglishResponse.json()
+  assert.equal(chineseEnglishResponse.status, 200)
+  assert.ok(chineseEnglish.items.some(item => item.doi === '10.example/en'))
+  assert.ok(!chineseEnglish.items.some(item => item.doi === '10.5803/jsfm.39.87'))
+
+  const japaneseResponse = await post({ ...regressionBase, languages: ['ja'] })
+  const japanese = await japaneseResponse.json()
+  assert.equal(japaneseResponse.status, 200)
+  assert.ok(japanese.items.some(item => item.doi === '10.example/ja-reported'), 'Japanese work remains available in Japanese filter')
+
+  const unlimitedResponse = await post({ ...regressionBase, languages: [] })
+  const unlimited = await unlimitedResponse.json()
+  assert.equal(unlimitedResponse.status, 200)
+  const targetInUnlimited = unlimited.items.find(item => item.doi === '10.5803/jsfm.39.87')
+  assert.ok(targetInUnlimited, 'target DOI remains in unfiltered final response')
+  assert.equal(targetInUnlimited.languageStatus, 'needs-review')
+  assert.equal(unlimited.languageFilter, undefined)
+  console.log('PASS final Worker JSON: target DOI excluded for English, retained as needs-review when unfiltered; English/Japanese controls pass')
 
   const traditionalResponse = await post({ ...base, language: 'zh', languageScript: 'hant' })
   const traditional = await traditionalResponse.json()
